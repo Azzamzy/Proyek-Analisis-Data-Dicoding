@@ -1,101 +1,103 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from datetime import datetime
 
-# Judul Aplikasi
-st.title("Dashboard Analisis Data Rental Sepeda")
+# Load dataset
+@st.cache_data
+def load_data():
+    # Ganti dengan path file Anda jika berbeda
+    data = pd.read_csv('data/alldata.csv')
+    return data
 
-# Load Dataset
-uploaded_file = st.file_uploader("Unggah dataset CSV", type="csv")
-if uploaded_file is not None:
-    # Membaca dataset
-    df = pd.read_csv(uploaded_file)
-
-    # Menampilkan beberapa baris data
-    st.subheader("Tampilan Data")
-    st.dataframe(df.head())
-
-    # --- PREPROCESSING ---
-    # Pastikan kolom datetime diubah ke format datetime
-    df['datetime_x'] = pd.to_datetime(df['datetime_x'])
+# Fungsi utama Streamlit
+def main():
+    st.title("Dashboard Analisis Data Rental Sepeda")
+    st.write(
+        """
+        Dashboard ini menyediakan analisis data rental sepeda dengan fitur interaktif 
+        seperti filtering dan visualisasi data.
+        """
+    )
     
-    # --- RFM ANALYSIS ---
-    st.subheader("RFM Analysis")
+    # Load data
+    data = load_data()
 
-    # Menghitung Recency
-    terakhir_sewa = df['datetime_x'].max()
-    df['Recency'] = (terakhir_sewa - df['datetime_x']).dt.days
+    # Sidebar untuk Filtering
+    st.sidebar.header("Filter Data")
+    
+    # Filter Season
+    season = st.sidebar.multiselect(
+        "Pilih Season (Musim):",
+        options=data['season_x'].unique(),
+        default=data['season_x'].unique()
+    )
 
-    # Menghitung Frequency
-    df['Frequency'] = df['casual_x'] + df['registered_x']
+    # Filter Weekday
+    weekday = st.sidebar.multiselect(
+        "Pilih Weekday (Hari):",
+        options=data['weekday_x'].unique(),
+        default=data['weekday_x'].unique()
+    )
 
-    # Menghitung Monetary
-    df['Monetary'] = df['total_rental_x']
+    # Filter Hour
+    hour = st.sidebar.slider(
+        "Pilih Rentang Jam:",
+        min_value=int(data['hour'].min()),
+        max_value=int(data['hour'].max()),
+        value=(int(data['hour'].min()), int(data['hour'].max()))
+    )
 
-    # Menampilkan RFM Summary
-    rfm_summary = df[['Recency', 'Frequency', 'Monetary']].describe()
-    st.write("Ringkasan RFM:")
-    st.dataframe(rfm_summary)
+    # Filter Workingday
+    workingday = st.sidebar.radio(
+        "Pilih Status Hari Kerja:",
+        options=["Semua", "Hari Kerja", "Bukan Hari Kerja"],
+        index=0
+    )
 
-    # Visualisasi RFM
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    sns.histplot(df['Recency'], bins=20, kde=True, ax=axes[0], color='blue')
-    axes[0].set_title('Distribusi Recency')
-    sns.histplot(df['Frequency'], bins=20, kde=True, ax=axes[1], color='green')
-    axes[1].set_title('Distribusi Frequency')
-    sns.histplot(df['Monetary'], bins=20, kde=True, ax=axes[2], color='red')
-    axes[2].set_title('Distribusi Monetary')
+    # Filter berdasarkan opsi
+    filtered_data = data[
+        (data['season_x'].isin(season)) &
+        (data['weekday_x'].isin(weekday)) &
+        (data['hour'].between(hour[0], hour[1]))
+    ]
+    
+    if workingday == "Hari Kerja":
+        filtered_data = filtered_data[filtered_data['workingday_x'] == 1]
+    elif workingday == "Bukan Hari Kerja":
+        filtered_data = filtered_data[filtered_data['workingday_x'] == 0]
+
+    # Menampilkan Data yang Difilter
+    st.subheader("Data yang Difilter")
+    st.write(f"Jumlah Data: {len(filtered_data)} baris")
+    st.dataframe(filtered_data)
+
+    # Statistik Ringkas
+    st.subheader("Statistik Ringkas")
+    st.write(filtered_data.describe())
+
+    # Visualisasi
+    st.subheader("Visualisasi Data")
+
+    # Total Rentals berdasarkan jam
+    st.write("Total Rentals berdasarkan Jam")
+    rentals_by_hour = filtered_data.groupby('hour')['total_rental_x'].sum()
+    fig, ax = plt.subplots()
+    rentals_by_hour.plot(kind='bar', color='skyblue', ax=ax)
+    ax.set_xlabel("Jam")
+    ax.set_ylabel("Total Rentals")
+    ax.set_title("Total Rentals per Jam")
     st.pyplot(fig)
 
-    # --- CLUSTERING (MANUAL BINNING) ---
-    st.subheader("Clustering (Manual Binning)")
-
-    # Klaster berdasarkan Jam (hour)
-    def time_period(hour):
-        if 0 <= hour < 6:
-            return 'Malam'
-        elif 6 <= hour < 12:
-            return 'Pagi'
-        elif 12 <= hour < 18:
-            return 'Siang'
-        else:
-            return 'Sore'
-
-    df['Time Period'] = df['hour'].apply(time_period)
-
-    # Visualisasi distribusi klaster waktu
-    time_group = df.groupby('Time Period')['total_rental_x'].mean().reset_index()
-    st.write("Rata-rata Rental Berdasarkan Periode Waktu")
-    st.dataframe(time_group)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.barplot(data=time_group, x='Time Period', y='total_rental_x', palette='viridis', ax=ax)
-    ax.set_title('Rata-rata Rental Sepeda Berdasarkan Periode Waktu')
-    ax.set_ylabel('Rata-rata Total Rental')
-    ax.set_xlabel('Periode Waktu')
+    # Grafik Garis: Total Rentals berdasarkan Hari
+    st.write("Total Rentals berdasarkan Hari")
+    rentals_by_weekday = filtered_data.groupby('weekday_x')['total_rental_x'].sum()
+    fig, ax = plt.subplots()
+    rentals_by_weekday.plot(kind='line', marker='o', color='green', ax=ax)
+    ax.set_xlabel("Hari")
+    ax.set_ylabel("Total Rentals")
+    ax.set_title("Total Rentals per Hari")
     st.pyplot(fig)
 
-    # --- VISUALISASI TAMBAHAN ---
-    st.subheader("Visualisasi Tambahan")
 
-    # Grafik jumlah rental berdasarkan hari dalam seminggu
-    weekday_group = df.groupby('weekday_x')['total_rental_x'].mean().reset_index()
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.barplot(data=weekday_group, x='weekday_x', y='total_rental_x', palette='coolwarm', ax=ax)
-    ax.set_title('Rata-rata Rental Sepeda Berdasarkan Hari dalam Seminggu')
-    ax.set_ylabel('Rata-rata Total Rental')
-    ax.set_xlabel('Hari dalam Minggu')
-    st.pyplot(fig)
-
-    # Grafik heatmap hubungan variabel
-    st.write("Heatmap Korelasi")
-    correlation = df[['temp_x', 'humidity_x', 'windspeed_x', 'casual_x', 'registered_x', 'total_rental_x']].corr()
-    fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(correlation, annot=True, cmap='coolwarm', ax=ax)
-    st.pyplot(fig)
-
-else:
-    st.write("Silakan unggah file dataset untuk memulai analisis.")
+if __name__ == "__main__":
+    main()
