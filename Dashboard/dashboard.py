@@ -23,10 +23,10 @@ st.sidebar.header("Opsi Filter")
 
 # Opsi filter
 filter_season = st.sidebar.multiselect(
-    "Select Season:", options=data['season_x'].unique(), default=data['season_x'].unique()
+    "Pilih Season:", options=data['season_x'].unique(), default=data['season_x'].unique()
 )
 filter_weekday = st.sidebar.multiselect(
-    "Select Weekday:", options=data['weekday_x'].unique(), default=data['weekday_x'].unique()
+    "Pilih Weekday:", options=data['weekday_x'].unique(), default=data['weekday_x'].unique()
 )
 
 # Menambahkan Filter
@@ -39,7 +39,7 @@ average_usage_per_day = filtered_data.groupby('datetime_x')['total_rental_x'].me
 average_usage_per_season = filtered_data.groupby('season_x')['total_rental_x'].mean()
 
 # Hasil Display
-view_option = st.radio("Choose a view:", ("Daily", "Seasonal"))
+view_option = st.radio("Pilih tampilan:", ("Daily", "Seasonal"))
 if view_option == "Daily":
     st.line_chart(average_usage_per_day, use_container_width=True)
 elif view_option == "Seasonal":
