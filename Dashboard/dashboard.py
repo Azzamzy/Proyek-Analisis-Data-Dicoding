@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 @st.cache_data
 def load_data():
     # Ganti dengan path file Anda jika berbeda
-    data = pd.read_csv('data/merged_day_hour.csv')
+    data = pd.read_csv('Dashboard/alldata.csv')
     return data
 
 # Fungsi utama Streamlit
