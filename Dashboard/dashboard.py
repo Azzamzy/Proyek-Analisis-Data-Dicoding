@@ -1,73 +1,103 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Load dataset
 @st.cache_data
 def load_data():
-    file_path = "Dashboard/alldata.csv" 
-    data = pd.read_csv(file_path)
-    data['datetime_x'] = pd.to_datetime(data['datetime_x'])
-    data['datetime_y'] = pd.to_datetime(data['datetime_y'])
+    # Ganti dengan path file Anda jika berbeda
+    data = pd.read_csv('data/merged_day_hour.csv')
     return data
 
-data = load_data()
+# Fungsi utama Streamlit
+def main():
+    st.title("Dashboard Analisis Data Rental Sepeda")
+    st.write(
+        """
+        Dashboard ini menyediakan analisis data rental sepeda dengan fitur interaktif 
+        seperti filtering dan visualisasi data.
+        """
+    )
+    
+    # Load data
+    data = load_data()
 
-# Map nama kategori untuk season
-SEASON_MAP = {1: "Spring", 2: "Summer", 3: "Fall", 4: "Winter"}
-data['season_name_x'] = data['season_x'].map(SEASON_MAP)
-data['season_name_y'] = data['season_y'].map(SEASON_MAP)
+    # Sidebar untuk Filtering
+    st.sidebar.header("Filter Data")
+    
+    # Filter Season
+    season = st.sidebar.multiselect(
+        "Pilih Season (Musim):",
+        options=data['season_x'].unique(),
+        default=data['season_x'].unique()
+    )
 
-# Judul dan deskripsi aplikasi
-st.title("Analisis Penggunaan Sepeda")
-st.markdown(
-    """
-    **Aplikasi ini menjawab dua pertanyaan bisnis utama:**
-    1. Berapa rata-rata penggunaan sepeda per hari atau per musim?
-    2. Bagaimana pola penggunaan sepeda berdasarkan waktu harian?
-    """
-)
+    # Filter Weekday
+    weekday = st.sidebar.multiselect(
+        "Pilih Weekday (Hari):",
+        options=data['weekday_x'].unique(),
+        default=data['weekday_x'].unique()
+    )
 
-# Sidebar untuk filter
-st.sidebar.header("Filter Data")
-selected_season = st.sidebar.multiselect(
-    "Pilih Musim:",
-    options=data['season_name_x'].unique(),
-    default=data['season_name_x'].unique()
-)
-selected_year = st.sidebar.multiselect(
-    "Pilih Tahun:",
-    options=data['year_x'].unique(),
-    default=data['year_x'].unique()
-)
+    # Filter Hour
+    hour = st.sidebar.slider(
+        "Pilih Rentang Jam:",
+        min_value=int(data['hour'].min()),
+        max_value=int(data['hour'].max()),
+        value=(int(data['hour'].min()), int(data['hour'].max()))
+    )
 
-# Filter data berdasarkan pilihan pengguna
-filtered_data = data[
-    (data['season_name_x'].isin(selected_season)) &
-    (data['year_x'].isin(selected_year))
-]
+    # Filter Workingday
+    workingday = st.sidebar.radio(
+        "Pilih Status Hari Kerja:",
+        options=["Semua", "Hari Kerja", "Bukan Hari Kerja"],
+        index=0
+    )
 
-# Rata-rata penggunaan sepeda per musim
-st.subheader("Rata-rata Penggunaan Sepeda Per Hari atau Per Musim")
-avg_by_season = (
-    filtered_data.groupby('season_name_x')['total_rental_x']
-    .mean()
-    .reset_index()
-    .rename(columns={"season_name_x": "Musim", "total_rental_x": "Rata-rata Penyewaan"})
-)
+    # Filter berdasarkan opsi
+    filtered_data = data[
+        (data['season_x'].isin(season)) &
+        (data['weekday_x'].isin(weekday)) &
+        (data['hour'].between(hour[0], hour[1]))
+    ]
+    
+    if workingday == "Hari Kerja":
+        filtered_data = filtered_data[filtered_data['workingday_x'] == 1]
+    elif workingday == "Bukan Hari Kerja":
+        filtered_data = filtered_data[filtered_data['workingday_x'] == 0]
 
-st.table(avg_by_season)
+    # Menampilkan Data yang Difilter
+    st.subheader("Data yang Difilter")
+    st.write(f"Jumlah Data: {len(filtered_data)} baris")
+    st.dataframe(filtered_data)
 
-# Pola penggunaan sepeda berdasarkan waktu harian
-st.subheader("Pola Penggunaan Sepeda Berdasarkan Waktu Harian")
-hourly_pattern = filtered_data.groupby('hour')['total_rental_y'].mean().reset_index()
-plt.figure(figsize=(10, 5))
-sns.lineplot(data=hourly_pattern, x='hour', y='total_rental_y')
-plt.title("Pola Penyewaan Sepeda Berdasarkan Jam")
-plt.xlabel("Jam")
-plt.ylabel("Rata-rata Penyewaan")
-st.pyplot(plt)
+    # Statistik Ringkas
+    st.subheader("Statistik Ringkas")
+    st.write(filtered_data.describe())
 
-# Informasi tambahan
-st.markdown("Data yang ditampilkan adalah hasil dari filter yang Anda pilih.")
+    # Visualisasi
+    st.subheader("Visualisasi Data")
+
+    # Total Rentals berdasarkan jam
+    st.write("Total Rentals berdasarkan Jam")
+    rentals_by_hour = filtered_data.groupby('hour')['total_rental_x'].sum()
+    fig, ax = plt.subplots()
+    rentals_by_hour.plot(kind='bar', color='skyblue', ax=ax)
+    ax.set_xlabel("Jam")
+    ax.set_ylabel("Total Rentals")
+    ax.set_title("Total Rentals per Jam")
+    st.pyplot(fig)
+
+    # Grafik Garis: Total Rentals berdasarkan Hari
+    st.write("Total Rentals berdasarkan Hari")
+    rentals_by_weekday = filtered_data.groupby('weekday_x')['total_rental_x'].sum()
+    fig, ax = plt.subplots()
+    rentals_by_weekday.plot(kind='line', marker='o', color='green', ax=ax)
+    ax.set_xlabel("Hari")
+    ax.set_ylabel("Total Rentals")
+    ax.set_title("Total Rentals per Hari")
+    st.pyplot(fig)
+
+
+if __name__ == "__main__":
+    main()
