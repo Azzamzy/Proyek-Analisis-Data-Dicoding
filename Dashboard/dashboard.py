@@ -1,103 +1,63 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load dataset
-@st.cache_data
-def load_data():
-    # Ganti dengan path file Anda jika berbeda
-    data = pd.read_csv('Dashboard/alldata.csv')
-    return data
+# Load Dataset
+DATA_URL = 'data/alldata.csv'
+data = pd.read_csv(DATA_URL)
 
-# Fungsi utama Streamlit
-def main():
-    st.title("Dashboard Analisis Data Rental Sepeda")
-    st.write(
-        """
-        Dashboard ini menyediakan analisis data rental sepeda dengan fitur interaktif 
-        seperti filtering dan visualisasi data.
-        """
-    )
-    
-    # Load data
-    data = load_data()
+# filtering
+season_mapping = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
+data['season_x'] = data['season_x'].map(season_mapping)
+data['season_y'] = data['season_y'].map(season_mapping)
+weekday_mapping = {
+    0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday'
+}
+data['weekday_x'] = data['weekday_x'].map(weekday_mapping)
+data['weekday_y'] = data['weekday_y'].map(weekday_mapping)
 
-    # Sidebar untuk Filtering
-    st.sidebar.header("Filter Data")
-    
-    # Filter Season
-    season = st.sidebar.multiselect(
-        "Pilih Season (Musim):",
-        options=data['season_x'].unique(),
-        default=data['season_x'].unique()
-    )
+# Set up Streamlit app
+st.title("Bike Usage Dashboard")
+st.sidebar.header("Filter Options")
 
-    # Filter Weekday
-    weekday = st.sidebar.multiselect(
-        "Pilih Weekday (Hari):",
-        options=data['weekday_x'].unique(),
-        default=data['weekday_x'].unique()
-    )
+# Opsi Filtering
+filter_season = st.sidebar.multiselect(
+    "Select Season:", options=data['season_x'].unique(), default=data['season_x'].unique()
+)
+filter_weekday = st.sidebar.multiselect(
+    "Select Weekday:", options=data['weekday_x'].unique(), default=data['weekday_x'].unique()
+)
 
-    # Filter Hour
-    hour = st.sidebar.slider(
-        "Pilih Rentang Jam:",
-        min_value=int(data['hour'].min()),
-        max_value=int(data['hour'].max()),
-        value=(int(data['hour'].min()), int(data['hour'].max()))
-    )
+# Menambahkan Filter
+filtered_data = data[(data['season_x'].isin(filter_season)) & (data['weekday_x'].isin(filter_weekday))]
 
-    # Filter Workingday
-    workingday = st.sidebar.radio(
-        "Pilih Status Hari Kerja:",
-        options=["Semua", "Hari Kerja", "Bukan Hari Kerja"],
-        index=0
-    )
+# Pertanyaan 1: Rata rata penggunaan sepeda per season dan hari
+st.header("Average Bike Usage Per Day or Season")
 
-    # Filter berdasarkan opsi
-    filtered_data = data[
-        (data['season_x'].isin(season)) &
-        (data['weekday_x'].isin(weekday)) &
-        (data['hour'].between(hour[0], hour[1]))
-    ]
-    
-    if workingday == "Hari Kerja":
-        filtered_data = filtered_data[filtered_data['workingday_x'] == 1]
-    elif workingday == "Bukan Hari Kerja":
-        filtered_data = filtered_data[filtered_data['workingday_x'] == 0]
+average_usage_per_day = filtered_data.groupby('datetime_x')['total_rental_x'].mean()
+average_usage_per_season = filtered_data.groupby('season_x')['total_rental_x'].mean()
 
-    # Menampilkan Data yang Difilter
-    st.subheader("Data yang Difilter")
-    st.write(f"Jumlah Data: {len(filtered_data)} baris")
-    st.dataframe(filtered_data)
+# Hasil display
+view_option = st.radio("Choose a view:", ("Daily", "Seasonal"))
+if view_option == "Daily":
+    st.line_chart(average_usage_per_day, use_container_width=True)
+elif view_option == "Seasonal":
+    st.bar_chart(average_usage_per_season, use_container_width=True)
 
-    # Statistik Ringkas
-    st.subheader("Statistik Ringkas")
-    st.write(filtered_data.describe())
+# Pertanyaan 2: Penggunaan sepeda berdasarkan waktu harian
+st.header("Bike Usage Pattern By Time of Day")
 
-    # Visualisasi
-    st.subheader("Visualisasi Data")
+hourly_pattern = filtered_data.groupby('hour')['total_rental_x'].mean()
+plt.figure(figsize=(10, 6))
+sns.lineplot(x=hourly_pattern.index, y=hourly_pattern.values, marker='o', color='blue')
+plt.title('Average Bike Usage By Hour')
+plt.xlabel('Hour of Day')
+plt.ylabel('Average Bike Usage')
+plt.xticks(range(0, 24))
+st.pyplot(plt.gcf())
 
-    # Total Rentals berdasarkan jam
-    st.write("Total Rentals berdasarkan Jam")
-    rentals_by_hour = filtered_data.groupby('hour')['total_rental_x'].sum()
-    fig, ax = plt.subplots()
-    rentals_by_hour.plot(kind='bar', color='skyblue', ax=ax)
-    ax.set_xlabel("Jam")
-    ax.set_ylabel("Total Rentals")
-    ax.set_title("Total Rentals per Jam")
-    st.pyplot(fig)
-
-    # Grafik Garis: Total Rentals berdasarkan Hari
-    st.write("Total Rentals berdasarkan Hari")
-    rentals_by_weekday = filtered_data.groupby('weekday_x')['total_rental_x'].sum()
-    fig, ax = plt.subplots()
-    rentals_by_weekday.plot(kind='line', marker='o', color='green', ax=ax)
-    ax.set_xlabel("Hari")
-    ax.set_ylabel("Total Rentals")
-    ax.set_title("Total Rentals per Hari")
-    st.pyplot(fig)
-
-
-if __name__ == "__main__":
-    main()
+# Footer
+st.write("### Notes")
+st.write("- Data is filtered based on the selected season and weekday.")
+st.write("- Use the sidebar to customize the filters.")
