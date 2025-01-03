@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Load Dataset
-DATA_URL = 'data/alldata.csv'
+DATA_URL = 'Dashboard/alldata.csv'
 data = pd.read_csv(DATA_URL)
 
 # filtering
